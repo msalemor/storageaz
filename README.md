@@ -1,4 +1,4 @@
-# Azure Storage Function
+# Azure Storage Functions
 
 ## Requirements
 
