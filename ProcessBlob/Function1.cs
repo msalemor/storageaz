@@ -12,6 +12,10 @@ namespace ProcessBlob
 {
     public static class Function1
     {
+        private const string ArchiveContainer = "archive-container";
+        private const string JSONContainer = "json-container";
+        private const string LocalStorageConnectionString = "UseDevelopmentStorage=true";
+
         // CloudStorageAccount storageAccount = CloudStorageAccount.Parse(connectionString);
         static CloudStorageAccount storageAccount;
 
@@ -22,7 +26,7 @@ namespace ProcessBlob
         public static async Task Run([BlobTrigger("process-container/{name}", Connection = "")]CloudBlockBlob myBlob, ILogger log)
         {
             // Connection the the storage account
-            storageAccount = CloudStorageAccount.Parse("UseDevelopmentStorage=true");
+            storageAccount = CloudStorageAccount.Parse(LocalStorageConnectionString);
             
             // Should be a singleton for the life of the process
             blobClient = storageAccount.CreateCloudBlobClient();
@@ -60,7 +64,7 @@ namespace ProcessBlob
         {
             var blobName = $"{Environment.TickCount.ToString()}.json";
 
-            CloudBlockBlob blockBlob = await GetBlobReference(blobName, "json-container", log);
+            CloudBlockBlob blockBlob = await GetBlobReference(blobName, JSONContainer, log);
 
             // Get the bytes for the JSON
             var buffer = Encoding.ASCII.GetBytes(json);
@@ -96,7 +100,7 @@ namespace ProcessBlob
         {
             log.LogInformation($"BlockBlob destination name: {orginalBlob.Name}");
 
-            CloudBlockBlob targetBlob = await GetBlobReference(orginalBlob.Name, "archive-container", log);
+            CloudBlockBlob targetBlob = await GetBlobReference(orginalBlob.Name, ArchiveContainer, log);
 
             log.LogInformation("Starting Copy");
             try
