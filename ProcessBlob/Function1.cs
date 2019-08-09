@@ -13,15 +13,21 @@ namespace ProcessBlob
     public static class Function1
     {
         // CloudStorageAccount storageAccount = CloudStorageAccount.Parse(connectionString);
-        static CloudStorageAccount storageAccount = CloudStorageAccount.Parse("UseDevelopmentStorage=true");
+        static CloudStorageAccount storageAccount;
 
         // Create the destination blob client
-        static CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+        static CloudBlobClient blobClient;
 
         [FunctionName("Function1")]
         public static async Task Run([BlobTrigger("process-container/{name}", Connection = "")]CloudBlockBlob myBlob, ILogger log)
         {
-            log.LogInformation($"C# Blob trigger function Processed blob\n Name:{myBlob.Properties.Length} \n Size: ? Bytes");
+            // Connection the the storage account
+            storageAccount = CloudStorageAccount.Parse("UseDevelopmentStorage=true");
+            
+            // Should be a singleton for the life of the process
+            blobClient = storageAccount.CreateCloudBlobClient();
+
+            log.LogInformation($"C# Blob trigger function Processed blob\n Name:{myBlob.Properties.Length} \n Size: {myBlob.Properties.Length} Bytes");
 
             // Once the blob is posted to the process-container process it
             var json = await ProcessAsync(myBlob, log);
@@ -52,37 +58,23 @@ namespace ProcessBlob
 
         private async static Task SaveBlob(string json, ILogger log)
         {
-
-            // Get a reference to the json-container
-            CloudBlobContainer container = blobClient.GetContainerReference("json-container");
-
-            // Create the container if it doesn't already exist.
-            try
-            {
-                await container.CreateIfNotExistsAsync();
-            }
-            catch (Exception e)
-            {
-                log.LogError(e.Message);
-            }
-            
-            // Get a blob reference for the new blob
             var blobName = $"{Environment.TickCount.ToString()}.json";
-            CloudBlockBlob blockBlob = container.GetBlockBlobReference(blobName);
+
+            CloudBlockBlob blockBlob = await GetBlobReference(blobName, "json-container", log);
 
             // Get the bytes for the JSON
             var buffer = Encoding.ASCII.GetBytes(json);
             var count = json.Length;
-            
+
             // Save the bytes to blob reference
             await blockBlob.UploadFromByteArrayAsync(buffer, 0, count);
             log.LogInformation($"Blob {blobName} saved to container json-container");
         }
 
-        private async static Task MoveBlob(CloudBlockBlob myBlob, ILogger log)
+        private static async Task<CloudBlockBlob> GetBlobReference(string blobName, string containerName, ILogger log)
         {
-            // Get a refence to the archive-container
-            CloudBlobContainer container = blobClient.GetContainerReference("archive-container");
+            // Get a reference to the json-container
+            CloudBlobContainer container = blobClient.GetContainerReference(containerName);
 
             // Create the container if it doesn't already exist.
             try
@@ -94,15 +86,23 @@ namespace ProcessBlob
                 log.LogError(e.Message);
             }
 
-            // Get hold of the destination blob
-            CloudBlockBlob blockBlob = container.GetBlockBlobReference(myBlob.Name);
-            log.LogInformation($"BlockBlob destination name: {blockBlob.Name}");
+            // Get a blob reference for the new blob
+
+            CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
+            return blob;
+        }
+
+        private async static Task MoveBlob(CloudBlockBlob orginalBlob, ILogger log)
+        {
+            log.LogInformation($"BlockBlob destination name: {orginalBlob.Name}");
+
+            CloudBlockBlob targetBlob = await GetBlobReference(orginalBlob.Name, "archive-container", log);
 
             log.LogInformation("Starting Copy");
             try
             {
-                // Copy the original blob to the new location
-                await blockBlob.StartCopyAsync(myBlob);
+                // Copy the original blob to the new location with the same name
+                await targetBlob.StartCopyAsync(orginalBlob);
 
                 // alternatively, uncomment the code below and use this method to copy the blob data
                 /*using (var stream = await myBlob.OpenReadAsync())
@@ -112,7 +112,7 @@ namespace ProcessBlob
                 log.LogInformation("Starting Delete");
 
                 // Delete the original blob
-                await myBlob.DeleteAsync();
+                await orginalBlob.DeleteAsync();
                 log.LogInformation("Move completed");
 
             }
