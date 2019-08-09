@@ -20,7 +20,7 @@ These are a couple of sample Azure Functions to demo the ability to move blobs f
 
 - Enconder is a .Net Console app that can serialize a Contact POCO object first to JSON, then to base64 encoding and then generates a file ending in .b64.
  
-- ProcessBlob is an Azure function that can deserialize from blob, to base64, to JSON, and save the JSON to a new container and then move the original blob to an archive container.
+- ProcessBlob is an Azure function that can get the byte array from blob, deserialize them to base64, then to JSON, then saves the JSON to the json-container and then moves the original blob to an archive container.
 
 ### Testing Locally
 
